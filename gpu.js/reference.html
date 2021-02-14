@@ -1,0 +1,116 @@
+<!-- Learn about this code on MDN: https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas -->
+
+<canvas id="canvas" width="1200" height="700"></canvas>
+<div>
+    <input id="grayscalebtn" value="Grayscale" type="button">
+    <input id="invertbtn" value="Invert" type="button">
+    <label>Slider GPU</label>
+    <input id="slider" type="range" min="0" max="100" step="1" value="0" />
+    <label>Slider CPU</label>
+    <input id="sliderCPU" type="range" min="0" max="100" step="1" value="0" />
+    <script src="https://cdn.bootcss.com/gpu.js/1.10.4/gpu.min.js"></script>
+
+</div>
+
+<script>
+    var img = new Image();
+    img.src = 'https://luigi.playment.io/api/image?url=http://dfnq1fss3rnqc.cloudfront.net/play/original/f89304b8-6118-4a94-a2c6-f7ce6e6ba0c0';
+    img.setAttribute('crossOrigin', '')
+    img.onload = function() {
+        draw(this);
+    };
+
+    function getImageData() {
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        var hRatio = canvas.width  / img.width    ;
+        var vRatio =  canvas.height / img.height  ;
+        var ratio  = Math.min ( hRatio, vRatio );
+        var centerShift_x = ( canvas.width - img.width*ratio ) / 2;
+        var centerShift_y = ( canvas.height - img.height*ratio ) / 2;
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        ctx.drawImage(img, 0,0, img.width, img.height,
+            centerShift_x,centerShift_y,img.width*ratio, img.height*ratio);
+        return ctx.getImageData(0, 0, canvas.width, canvas.height)
+    }
+
+    var sliderGPU = document.getElementById('slider')
+    sliderGPU.oninput = (e) => {
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        var imageData = getImageData();
+        var data = imageData.data;
+        console.time('test for GPU')
+        const gpu = new GPU();
+        const kernel = gpu.createKernel(function(data, value) {
+            if((this.thread.x + 1) % 4 !== 0) {
+                return data[this.thread.x] + value
+            } else {
+                return data[this.thread.x]
+            }
+        }).setOutput([data.length])
+        const array = new Uint8ClampedArray(kernel(data, parseInt(e.target.value)))
+        var newImageData = new ImageData(array, imageData.width, imageData.height)
+        newImageData.data = array
+        ctx.putImageData(newImageData, 0, 0);
+        console.timeEnd('test for GPU')
+    }
+
+    var sliderCPU = document.getElementById('sliderCPU')
+    sliderCPU.oninput = (e) => {
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        var imageData = getImageData();
+        var data = imageData.data;
+        console.time('test for CPU')
+        for (var i = 0; i < data.length; i += 4) {
+            data[i]     += parseInt(e.target.value)
+            data[i + 1] += parseInt(e.target.value)
+            data[i + 2] += parseInt(e.target.value)
+        }
+        ctx.putImageData(imageData, 0, 0);
+        console.timeEnd('test for CPU')
+    }
+
+    function draw(img) {
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        var hRatio = canvas.width  / img.width    ;
+        var vRatio =  canvas.height / img.height  ;
+        var ratio  = Math.min ( hRatio, vRatio );
+        var centerShift_x = ( canvas.width - img.width*ratio ) / 2;
+        var centerShift_y = ( canvas.height - img.height*ratio ) / 2;
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        ctx.drawImage(img, 0,0, img.width, img.height,
+            centerShift_x,centerShift_y,img.width*ratio, img.height*ratio);
+        img.style.display = 'none';
+
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var data = imageData.data;
+
+        var invert = function() {
+            for (var i = 0; i < data.length; i += 4) {
+                data[i]     = 255 - data[i];     // red
+                data[i + 1] = 255 - data[i + 1]; // green
+                data[i + 2] = 255 - data[i + 2]; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+        };
+
+        var grayscale = function() {
+            for (var i = 0; i < data.length; i += 4) {
+                var avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                data[i]     = avg; // red
+                data[i + 1] = avg; // green
+                data[i + 2] = avg; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+        };
+
+        var invertbtn = document.getElementById('invertbtn');
+        invertbtn.addEventListener('click', invert);
+        var grayscalebtn = document.getElementById('grayscalebtn');
+        grayscalebtn.addEventListener('click', grayscale);
+    }
+
+</script>
