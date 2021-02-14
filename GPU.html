@@ -1,0 +1,35 @@
+<!-- Learn about this code on MDN: https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas -->
+
+<div id="canvas"></div>
+<div>
+    <label>Slider GPU</label>
+    <input id="slider" type="range" min="0" max="100" step="1" value="0" />
+    <script src="https://cdn.bootcss.com/gpu.js/1.10.4/gpu.min.js"></script>
+</div>
+
+<script>
+
+    const img = new Image();
+    img.src = 'https://luigi.playment.io/api/image?url=http://dfnq1fss3rnqc.cloudfront.net/play/original/f89304b8-6118-4a94-a2c6-f7ce6e6ba0c0';
+    img.setAttribute('crossOrigin', '')
+    img.onload = function() {
+        // GPU kernel initialization
+        const gpu = new GPU();
+        const kernel = gpu.createKernel(function(image, brightnessValue) {
+            const pixel = image[this.thread.y][this.thread.x];
+            this.color(pixel[0] + brightnessValue/256, pixel[1] + brightnessValue/256, pixel[2] + brightnessValue/256, pixel[3]);
+        })
+        .setGraphical(true)
+        .setOutput([img.width, img.height]);
+        kernel(img, 0);
+        document.getElementById('canvas').appendChild(kernel.getCanvas())
+
+        // Event listener for slider input
+        const sliderGPU = document.getElementById('slider')
+        sliderGPU.oninput = (e) => {
+            const brightnessValue = e.target.value
+            kernel(img, brightnessValue)
+        }
+    };
+
+</script>
